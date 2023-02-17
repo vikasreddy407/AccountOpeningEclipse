@@ -6,7 +6,10 @@ import java.util.Map;
 
 import com.cg.account.service.AccountService;
 import com.cg.account.service.LoggerDelegate;
+import com.cg.account.service.MyUserDetailsService;
+import com.cg.account.utils.JwtUtil;
 import com.cg.account.vo.AccountDetails;
+import com.cg.account.vo.AuthRequest;
 import com.cg.account.vo.TaskStatus;
 
 import org.camunda.bpm.engine.ProcessEngine;
@@ -22,6 +25,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,7 +37,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 /**
  * 
  * restcontoller is used to handle the resful webservices
@@ -46,7 +52,16 @@ public class AccountWeb {
     RuntimeService runtimeService;
     @Autowired
     ProcessEngine processEngine;
+    
+    @Autowired
+    private AuthenticationManager authenticationManager;
  
+    @Autowired
+    private MyUserDetailsService userDetailsService;
+    
+    @Autowired
+    private JwtUtil jwtTokenUtil;
+    
     @PostMapping("/new-account")
     public ResponseEntity<AccountDetails> startAccountOpeningJourney(@RequestBody AccountDetails newAccountOp){
     	HashMap<String,Object> newAccountMap = new HashMap<>();
@@ -83,28 +98,33 @@ public class AccountWeb {
                 runtimeService.setVariable(task.getExecutionId(), "isManagerApproved", false);
                 taskService.complete(task.getId());
             }
-             
           }
    
-    } 
-    @PutMapping("/updateVariable")
-
-    public void updateVariable(@RequestBody TaskStatus taskStatus){
-
-           RuntimeService runtimeService = processEngine.getRuntimeService();
-           TaskService taskService = processEngine.getTaskService();
-           
-          Task task = taskService.createTaskQuery().taskId(taskStatus.getTaskId()).singleResult(); 
-           
-           if(taskStatus.getTaskName().equalsIgnoreCase("frontdesk to update customer")){
-             if(taskStatus.getTaskStatus().equalsIgnoreCase("variable is added")){
-                 runtimeService.setVariable(task.getExecutionId(), "addVariable", true);
-                 taskService.complete(task.getId());
-            }else if(taskStatus.getTaskStatus().equalsIgnoreCase("variable is not added")){
-                runtimeService.setVariable(task.getExecutionId(), "addVariable", false);
-                taskService.complete(task.getId());
-            }
-             
-        }
+           else if(taskStatus.getTaskName().equalsIgnoreCase("frontdesk to update customer")){
+               if(taskStatus.getTaskStatus().equalsIgnoreCase("approved")){
+                   runtimeService.setVariable(task.getExecutionId(), "addVariable", true);
+                   taskService.complete(task.getId());
+              }else if(taskStatus.getTaskStatus().equalsIgnoreCase("rejected")){
+                  runtimeService.setVariable(task.getExecutionId(), "addVariable", false);
+                  taskService.complete(task.getId());
+              }     
+          }
     }
+    
+    
+    @PostMapping("/authenticate")
+    public String generateToken(@RequestBody AuthRequest authRequest) throws Exception {
+       try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(authRequest.getUserName(), authRequest.getPassword())
+            );
+       } catch (BadCredentialsException ex) {
+           throw new Exception("inavalid username or password",ex);
+           }
+       return jwtTokenUtil.generateToken(authRequest.getUserName());
+//       final UserDetails userDetails = userDetailsService
+//    		   .loadUserByUsername(authRequest.getUserName());
+//       final String jwt = jwtTokenUtil.generateToken(userDetails);
+//    }
+    }  
 }

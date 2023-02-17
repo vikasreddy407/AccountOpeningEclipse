@@ -28,12 +28,12 @@ public class AccountService implements JavaDelegate{
 
 }
 	
-	public void approved(boolean approval) {
-		this.approval=approval;
-	}
-	 public boolean approval(){
-		 return this.approval;
-	 }
+//	public void approved(boolean approval) {
+//		this.approval=approval;
+//	}
+//	 public boolean approval(){
+//		 return this.approval;
+//	 }
 	
 	
 	
